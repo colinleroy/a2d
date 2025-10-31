@@ -4220,11 +4220,7 @@ srts:   rts
     END_IF
         sta     cursor_y2
 
-        ;; Compute bytes to draw, and pre-shift table
-        sec
-        sbc     cursor_y1       ; number of lines
-        asl                     ; *= 2
-        sbc     #0              ; -1
+        lda     #0
         sta     drawbits_index  ; index into `active_cursor`/`active_cursor_mask`
 
         lda     cursor_pos::xcoord
@@ -4284,7 +4280,7 @@ set_divmod:
         ;; Iterate from bottom of cursor to the top
 
         ldx     #(MGTK::cursor_height * 3) - 1 ; index into `cursor_savebits`
-        ldy     cursor_y2
+        ldy     cursor_y1
 dloop:
         lda     hires_table_lo,y
         sta     vid_ptr
@@ -4292,22 +4288,24 @@ dloop:
         ora     #$20
         sta     vid_ptr+1
 
-        sty     cursor_y2
+        sty     cursor_y1
         stx     savebits_index
 
         ;; Look up the cursor bits/mask for this row, stash in `cursor_bits`/`cursor_mask`
         ldy     drawbits_index
-        ldx     #MGTK::cursor_width - 1
-    DO
+        ldx     #0
+:
         active_cursor := * + 1
         lda     $FFFF,y
         sta     cursor_bits,x
         active_cursor_mask := * + 1
         lda     $FFFF,y
         sta     cursor_mask,x
-        dey
-        dex
-    WHILE POS
+        iny
+        inx
+        cpx     #MGTK::cursor_width
+        bcc     :-
+
         sty     drawbits_index
         lda     #0              ; third byte starts off empty
         sta     cursor_bits+2
@@ -4373,10 +4371,10 @@ dloop:
         dex
     END_IF
 
-        ldy     cursor_y2
+        ldy     cursor_y1
 drnext:
-        dey
-        cpy     cursor_y1
+        iny
+        cpy     cursor_y2
         beq     drts
         jmp     dloop
 .endproc ; DrawCursor
@@ -4399,7 +4397,7 @@ active_cursor_mask   := DrawCursor::active_cursor_mask
         ;; Iterate from bottom of cursor to the top
 
         ldx     #(MGTK::cursor_height * 3) - 1 ; index into `cursor_savebits`
-        ldy     cursor_y2
+        ldy     cursor_y1
     DO
         lda     hires_table_lo,y
         sta     vid_ptr
@@ -4407,7 +4405,7 @@ active_cursor_mask   := DrawCursor::active_cursor_mask
         ora     #$20
         sta     vid_ptr+1
 
-        sty     cursor_y2
+        sty     cursor_y1
 
         ldy     cursor_col
 
@@ -4440,9 +4438,9 @@ active_cursor_mask   := DrawCursor::active_cursor_mask
         dex
       END_IF
 
-        ldy     cursor_y2
-        dey
-    WHILE Y <> cursor_y1
+        ldy     cursor_y1
+        iny
+    WHILE Y <> cursor_y2
 
         sta     LOWSCR
 ret:    rts
